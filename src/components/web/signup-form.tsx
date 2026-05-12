@@ -18,7 +18,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { signupSchema } from '@/schemas/auth'
 import { authClient } from '@/lib/auth-client'
-// import { toast } from 'sonner'
+import { toast } from 'sonner'
 import { useTransition } from 'react'
 
 const SignupForm= () => {
@@ -35,25 +35,24 @@ const SignupForm= () => {
         onSubmit: signupSchema,
         },
         onSubmit: ({ value }) => {
-        startTransition(async () => {
-            await authClient.signUp.email({
-            name: value.fullName,
-            email: value.email,
-            password: value.password,
-            //callbackURL: '/dashboard',
-            fetchOptions: {
-                onSuccess: () => {
-                // toast.success('Account creates successfully')
-                // navigate({
-                //     to: '/dashboard',
-                // })
-                },
-                onError: ({ error }) => {
-                // toast.error(error.message)
-                },
-            },
-            })
-        })
+          startTransition(async () => {
+              await authClient.signUp.email({
+              name: value.fullName,
+              email: value.email,
+              password: value.password,
+              fetchOptions: {
+                  onSuccess: () => {
+                    toast.success('Account created successfully')
+                    navigate({
+                        to: '/',
+                    })
+                  },
+                  onError: ({ error }) => {
+                    toast.error(error.message)
+                  },
+              },
+              })
+          })
         },
     })
     return (
