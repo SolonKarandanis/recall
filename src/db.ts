@@ -12,6 +12,7 @@ const adapter = new PrismaMariaDb({
   password: process.env.DB_PASSWORD || "recall",
   database: process.env.DB_DATABASE || "recall",
   connectionLimit: 5,
+  allowPublicKeyRetrieval: true,
 });
 
 export const prisma = globalThis.__prisma || new PrismaClient({adapter}) as any
