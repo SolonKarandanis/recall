@@ -44,7 +44,7 @@ const SignupForm= () => {
                   onSuccess: () => {
                     toast.success('Account created successfully')
                     navigate({
-                        to: '/',
+                        to: '/dashboard',
                     })
                   },
                   onError: ({ error }) => {

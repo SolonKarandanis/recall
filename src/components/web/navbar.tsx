@@ -33,7 +33,7 @@ const Navbar = () => {
                     {isPending ? null: session ? (
                        <>
                             <Button onClick={handleSignOut}>Logout</Button>
-                            <Link to="/" className={buttonVariants({ variant: "secondary" })}>
+                            <Link to="/dashboard" className={buttonVariants({ variant: "secondary" })}>
                                 Dashboard
                             </Link>
                        </>
