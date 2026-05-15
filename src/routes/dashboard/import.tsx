@@ -4,13 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#/com
 import { FieldError, FieldGroup, FieldLabel,Field } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import type { BulkScrapeProgress } from '#/data/items'
+import { mapUrlFn, scrapeUrlFn, type BulkScrapeProgress } from '#/data/items'
 import { bulkImportSchema, importSchema } from '#/schemas/import'
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute } from '@tanstack/react-router'
 import { Globe, LinkIcon, Loader2 } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
+import type { SearchResultWeb } from '@mendable/firecrawl-js'
+import { Progress } from '#/components/ui/progress'
 
 export const Route = createFileRoute('/dashboard/import')({
   component: RouteComponent,
@@ -72,7 +74,41 @@ function RouteComponent() {
   }
 
   function handleBulkImport(){
+    startBulkTransition(async () => {
+      if (selectedUrls.size === 0) {
+        toast.error('Please select at least one URL to import.')
+        return
+      }
 
+      setProgress({
+        completed: 0,
+        total: selectedUrls.size,
+        url: '',
+        status: 'success',
+      })
+      let successCount = 0
+      let failedCount = 0
+
+      // for await (const update of await bulkScrapeUrlsFn({
+      //   data: { urls: Array.from(selectedUrls) },
+      // })) {
+      //   setProgress(update)
+
+      //   if (update.status === 'success') {
+      //     successCount++
+      //   } else {
+      //     failedCount++
+      //   }
+      // }
+
+      setProgress(null)
+
+      if (failedCount > 0) {
+        toast.success(`Imported ${successCount} Urls (${failedCount} failed)`)
+      } else {
+        toast.success(`Successfully imported ${successCount} URLs`)
+      }
+    })
   }
 
    const form = useForm({
@@ -85,7 +121,7 @@ function RouteComponent() {
     onSubmit: ({ value }) => {
       startTransition(async () => {
         console.log(value)
-        // await scrapeUrlFn({ data: value })
+        await scrapeUrlFn({ data: value })
         toast.success('URL scraped successfully!')
       })
     },
@@ -102,9 +138,8 @@ function RouteComponent() {
     onSubmit: ({ value }) => {
       startTransition(async () => {
         console.log(value)
-        // const data = await mapUrlFn({ data: value })
-
-        // setDiscoveredLinks(data)
+        const data = await mapUrlFn({ data: value })
+        setDiscoveredLinks(data)
       })
     },
   })
