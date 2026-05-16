@@ -77,7 +77,7 @@ model SavedItem {
   url String
 
   title   String?
-  content String? // Clean markdown from Firecrawl
+  content String? @db.LongText // Clean markdown from Firecrawl
   summary String? // AI-generated summary
   tags    Json?
   author  String?
