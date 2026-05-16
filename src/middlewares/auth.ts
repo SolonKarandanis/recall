@@ -5,8 +5,7 @@ import { redirect } from '@tanstack/react-router'
 
 export const authFnMiddleware = createMiddleware({ type: 'function' }).server(
   async ({ next }) => {
-    const headers = getRequestHeaders()
-    const session = await auth.api.getSession({ headers })
+    const session = getSession();
 
     if (!session) {
       throw redirect({ to: '/login' })
@@ -27,8 +26,7 @@ export const authMiddleware = createMiddleware({ type: 'request' }).server(
       return next()
     }
 
-    const headers = getRequestHeaders()
-    const session = await auth.api.getSession({ headers })
+    const session = getSession();
 
     if (!session) {
       throw redirect({ to: '/login' })
@@ -37,3 +35,8 @@ export const authMiddleware = createMiddleware({ type: 'request' }).server(
     return next({ context: { session } })
   },
 )
+
+const getSession = async () => {
+  const headers = getRequestHeaders()
+  return await auth.api.getSession({ headers })
+}

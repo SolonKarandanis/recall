@@ -69,7 +69,6 @@ export const scrapeUrlFn = createServerFn({ method: 'POST' })
       
       return updatedItem
     } catch (error) {
-      console.error('scrapeUrlFn failed for', data.url, error)
       const failedItem = await prisma.savedItem.update({
         where: {
           id: item.id,
@@ -114,18 +113,24 @@ export const bulkScrapeUrlsFn = createServerFn({ method: 'POST' })
   )
   .handler(async function* ({ data, context }) {
     const total = data.urls.length
-    for (let i = 0; i < data.urls.length; i++) {
-      const url = data.urls[i]
 
-      const item = await prisma.savedItem.create({
-        data: {
-          url: url,
-          userId: context.session.user.id,
-          status: 'PENDING',
-        },
-      })
+    // Create all items upfront in parallel
+    const items = await Promise.all(
+      data.urls.map((url) =>
+        prisma.savedItem.create({
+          data: {
+            url: url,
+            userId: context.session.user.id,
+            status: 'PENDING',
+          },
+        }),
+      ),
+    )
 
+    // Create all scrape tasks and run concurrently
+    const scrapePromises = data.urls.map(async (url, index) => {
       let status: BulkScrapeProgress['status'] = 'success'
+      const item = items[index]
 
       try {
         const result = await firecrawl.scrape(url, {
@@ -142,9 +147,8 @@ export const bulkScrapeUrlsFn = createServerFn({ method: 'POST' })
           onlyMainContent: true,
           proxy: 'auto',
         })
-        
+
         const jsonData = result.json as z.infer<typeof extractSchema>
-        
 
         let publishedAt = null
 
@@ -182,13 +186,17 @@ export const bulkScrapeUrlsFn = createServerFn({ method: 'POST' })
         })
       }
 
-      const progress: BulkScrapeProgress = {
-        completed: i + 1,
+      return {
+        completed: index + 1,
         total: total,
         url: url,
         status: status,
       }
+    })
 
+    // Await all scrapes to complete and yield progress for each
+    const results = await Promise.all(scrapePromises)
+    for (const progress of results) {
       yield progress
     }
   })

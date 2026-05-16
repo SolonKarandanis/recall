@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#/com
 import { FieldError, FieldGroup, FieldLabel,Field } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { mapUrlFn, scrapeUrlFn, type BulkScrapeProgress } from '#/data/items'
+import { bulkScrapeUrlsFn, mapUrlFn, scrapeUrlFn, type BulkScrapeProgress } from '#/data/items'
 import { bulkImportSchema, importSchema } from '#/schemas/import'
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute } from '@tanstack/react-router'
@@ -89,17 +89,17 @@ function RouteComponent() {
       let successCount = 0
       let failedCount = 0
 
-      // for await (const update of await bulkScrapeUrlsFn({
-      //   data: { urls: Array.from(selectedUrls) },
-      // })) {
-      //   setProgress(update)
+      for await (const update of await bulkScrapeUrlsFn({
+        data: { urls: Array.from(selectedUrls) },
+      })) {
+        setProgress(update)
 
-      //   if (update.status === 'success') {
-      //     successCount++
-      //   } else {
-      //     failedCount++
-      //   }
-      // }
+        if (update.status === 'success') {
+          successCount++
+        } else {
+          failedCount++
+        }
+      }
 
       setProgress(null)
 
