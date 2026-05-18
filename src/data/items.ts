@@ -12,6 +12,7 @@ import z from 'zod'
 import { authFnMiddleware } from '@/middlewares/auth'
 import { notFound } from '@tanstack/react-router'
 import type { SearchResultWeb } from '@mendable/firecrawl-js'
+import type { SavedItem } from '#/generated/prisma/browser'
 // import { generateText } from 'ai'
 // import { openrouter } from '@/lib/openRouter'
 
@@ -295,7 +296,7 @@ export const getItemsFn = createServerFn({ method: 'GET' })
   .handler(async ({ context }) => {
     //await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    const items = await prisma.savedItem.findMany({
+    const items: SavedItem[] = await prisma.savedItem.findMany({
       where: {
         userId: context.session.user.id,
       },
