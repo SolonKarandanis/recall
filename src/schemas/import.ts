@@ -17,3 +17,7 @@ export const extractSchema = z.object({
 export const searchSchema = z.object({
   query: z.string().min(1),
 })
+
+export const retryFailedSchema = z.object({
+  baseUrl: z.string().url(),
+})

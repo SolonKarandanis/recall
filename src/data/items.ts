@@ -4,6 +4,7 @@ import {
   bulkImportSchema,
   extractSchema,
   importSchema,
+  retryFailedSchema,
   searchSchema,
 } from '@/schemas/import'
 import { createServerFn } from '@tanstack/react-start'
@@ -39,6 +40,7 @@ export const scrapeUrlFn = createServerFn({ method: 'POST' })
         location: { country: 'US', languages: ['en'] },
         onlyMainContent: true,
         proxy: 'auto',
+        timeout: 120000,
       })
 
       const jsonData = result.json as z.infer<typeof extractSchema>
@@ -146,6 +148,7 @@ export const bulkScrapeUrlsFn = createServerFn({ method: 'POST' })
           location: { country: 'US', languages: ['en'] },
           onlyMainContent: true,
           proxy: 'auto',
+          timeout: 120000,
         })
 
         const jsonData = result.json as z.infer<typeof extractSchema>
@@ -195,6 +198,92 @@ export const bulkScrapeUrlsFn = createServerFn({ method: 'POST' })
     })
 
     // Await all scrapes to complete and yield progress for each
+    const results = await Promise.all(scrapePromises)
+    for (const progress of results) {
+      yield progress
+    }
+  })
+
+export const retryFailedItemsFn = createServerFn({ method: 'POST' })
+  .middleware([authFnMiddleware])
+  .inputValidator(retryFailedSchema)
+  .handler(async function* ({ data, context }) {
+    const failedItems = await prisma.savedItem.findMany({
+      where: {
+        userId: context.session.user.id,
+        status: 'FAILED',
+        url: { startsWith: data.baseUrl },
+      },
+    })
+
+    const total = failedItems.length
+
+    if (total === 0) {
+      return
+    }
+
+    await prisma.savedItem.updateMany({
+      where: { id: { in: failedItems.map((i) => i.id) } },
+      data: { status: 'PROCESSING' },
+    })
+
+    const scrapePromises = failedItems.map(async (item, index) => {
+      let status: BulkScrapeProgress['status'] = 'success'
+
+      try {
+        const result = await firecrawl.scrape(item.url, {
+          formats: [
+            'markdown',
+            {
+              type: 'json',
+              prompt: 'please extract the author and also publishedAt timestamp',
+            },
+          ],
+          location: { country: 'US', languages: ['en'] },
+          onlyMainContent: true,
+          proxy: 'auto',
+          timeout: 120000,
+        })
+
+        const jsonData = result.json as z.infer<typeof extractSchema>
+
+        let publishedAt = null
+
+        if (jsonData.publishedAt) {
+          const parsed = new Date(jsonData.publishedAt)
+          if (!isNaN(parsed.getTime())) {
+            publishedAt = parsed
+          }
+        }
+
+        await prisma.savedItem.update({
+          where: { id: item.id },
+          data: {
+            title: result.metadata?.title || null,
+            content: result.markdown || null,
+            ogImage: result.metadata?.ogImage || null,
+            author: jsonData.author || null,
+            publishedAt: publishedAt,
+            status: 'COMPLETED',
+          },
+        })
+      } catch (error) {
+        status = 'failed'
+        console.error('retryFailedItemsFn failed for', item.url, error)
+        await prisma.savedItem.update({
+          where: { id: item.id },
+          data: { status: 'FAILED' },
+        })
+      }
+
+      return {
+        completed: index + 1,
+        total,
+        url: item.url,
+        status,
+      }
+    })
+
     const results = await Promise.all(scrapePromises)
     for (const progress of results) {
       yield progress

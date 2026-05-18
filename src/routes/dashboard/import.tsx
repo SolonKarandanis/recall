@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#/com
 import { FieldError, FieldGroup, FieldLabel,Field } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { bulkScrapeUrlsFn, mapUrlFn, scrapeUrlFn, type BulkScrapeProgress } from '#/data/items'
-import { bulkImportSchema, importSchema } from '#/schemas/import'
+import { bulkScrapeUrlsFn, mapUrlFn, retryFailedItemsFn, scrapeUrlFn, type BulkScrapeProgress } from '#/data/items'
+import { bulkImportSchema, importSchema, retryFailedSchema } from '#/schemas/import'
 import { useForm } from '@tanstack/react-form'
 import { createFileRoute } from '@tanstack/react-router'
 import { Globe, LinkIcon, Loader2 } from 'lucide-react'
@@ -45,6 +45,7 @@ export const Route = createFileRoute('/dashboard/import')({
 function RouteComponent() {
   const [isPending, startTransition] = useTransition()
   const [bulkIsPending, startBulkTransition] = useTransition()
+  const [retryIsPending, startRetryTransition] = useTransition()
 
   //bulk import state
   const [discoveredLinks, setDiscoveredLinks] = useState<
@@ -52,6 +53,7 @@ function RouteComponent() {
   >([])
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set())
   const [progress, setProgress] = useState<BulkScrapeProgress | null>(null)
+  const [retryProgress, setRetryProgress] = useState<BulkScrapeProgress | null>(null)
 
   function handleSelectAll() {
     if (selectedUrls.size === discoveredLinks.length) {
@@ -140,6 +142,40 @@ function RouteComponent() {
         console.log(value)
         const data = await mapUrlFn({ data: value })
         setDiscoveredLinks(data)
+      })
+    },
+  })
+
+  const retryForm = useForm({
+    defaultValues: {
+      baseUrl: '',
+    },
+    validators: {
+      onSubmit: retryFailedSchema,
+    },
+    onSubmit: ({ value }) => {
+      startRetryTransition(async () => {
+        setRetryProgress({ completed: 0, total: 0, url: '', status: 'success' })
+        let successCount = 0
+        let failedCount = 0
+        let total = 0
+
+        for await (const update of await retryFailedItemsFn({ data: value })) {
+          total = update.total
+          setRetryProgress(update)
+          if (update.status === 'success') successCount++
+          else failedCount++
+        }
+
+        setRetryProgress(null)
+
+        if (total === 0) {
+          toast.info('No failed items found for that URL prefix.')
+        } else if (failedCount > 0) {
+          toast.success(`Retried ${successCount} URLs (${failedCount} still failed)`)
+        } else {
+          toast.success(`Successfully retried ${successCount} URLs`)
+        }
       })
     },
   })
@@ -398,6 +434,77 @@ function RouteComponent() {
                     </Button>
                   </div>
                 )}
+                <div className="border-t pt-6 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium">Retry Failed</p>
+                    <p className="text-muted-foreground text-xs">
+                      Re-scrape items that failed for a given URL prefix.
+                    </p>
+                  </div>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      retryForm.handleSubmit()
+                    }}
+                  >
+                    <FieldGroup>
+                      <retryForm.Field
+                        name="baseUrl"
+                        children={(field) => {
+                          const isInvalid =
+                            field.state.meta.isTouched &&
+                            !field.state.meta.isValid
+                          return (
+                            <Field data-invalid={isInvalid}>
+                              <FieldLabel htmlFor={field.name}>Base URL</FieldLabel>
+                              <Input
+                                id={field.name}
+                                name={field.name}
+                                value={field.state.value}
+                                onBlur={field.handleBlur}
+                                onChange={(e) => field.handleChange(e.target.value)}
+                                aria-invalid={isInvalid}
+                                autoComplete="off"
+                              />
+                              {isInvalid && (
+                                <FieldError errors={field.state.meta.errors} />
+                              )}
+                            </Field>
+                          )
+                        }}
+                      />
+
+                      {retryProgress && retryProgress.total > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">
+                              Retrying: {retryProgress.completed} / {retryProgress.total}
+                            </span>
+                            <span className="font-medium">
+                              {Math.round((retryProgress.completed / retryProgress.total) * 100)}%
+                            </span>
+                          </div>
+                          <Progress
+                            value={(retryProgress.completed / retryProgress.total) * 100}
+                          />
+                        </div>
+                      )}
+
+                      <Button type="submit" disabled={retryIsPending} variant="outline">
+                        {retryIsPending ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            {retryProgress && retryProgress.total > 0
+                              ? `Retrying ${retryProgress.completed}/${retryProgress.total}...`
+                              : 'Looking up failed items...'}
+                          </>
+                        ) : (
+                          'Retry Failed'
+                        )}
+                      </Button>
+                    </FieldGroup>
+                  </form>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
