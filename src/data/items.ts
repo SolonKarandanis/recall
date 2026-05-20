@@ -224,11 +224,11 @@ export const retryFailedItemsFn = createServerFn({ method: 'POST' })
     }
 
     await prisma.savedItem.updateMany({
-      where: { id: { in: failedItems.map((i) => i.id) } },
+      where: { id: { in: failedItems.map((i:SavedItem) => i.id) } },
       data: { status: 'PROCESSING' },
     })
 
-    const scrapePromises = failedItems.map(async (item, index) => {
+    const scrapePromises = failedItems.map(async (item:SavedItem, index:number) => {
       let status: BulkScrapeProgress['status'] = 'success'
 
       try {
