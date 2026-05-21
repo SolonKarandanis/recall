@@ -1,13 +1,16 @@
 import { Button, buttonVariants } from '#/components/ui/button'
 import { Card, CardContent } from '#/components/ui/card'
-import { getItemById } from '#/data/items'
+import { getItemById, saveSummaryAndGenerateTagsFn } from '#/data/items'
 import type { SavedItem } from '#/generated/prisma/client'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import { ArrowLeft, Calendar, ChevronDown, Clock, ExternalLink, User } from 'lucide-react'
+import { ArrowLeft, Calendar, ChevronDown, Clock, ExternalLink, Loader2, Sparkles, User } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { useState } from 'react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#/components/ui/collapsible'
 import { cn } from '#/lib/utils'
+import { MessageResponse } from '#/components/ai-elements/message'
+import { useCompletion } from '@ai-sdk/react'
+import { toast } from 'sonner'
 
 export const Route = createFileRoute('/dashboard/items/$itemId')({
   component: RouteComponent,
@@ -46,6 +49,38 @@ function RouteComponent() {
   const data:SavedItem = Route.useLoaderData()
   const [contentOpen, setContentOpen] = useState(false)
   const router = useRouter()
+  const { completion, complete, isLoading } = useCompletion({
+    api: '/api/ai/summary',
+    initialCompletion: data.summary ? data.summary : undefined,
+    streamProtocol: 'text',
+    body: {
+      itemId: data.id,
+    },
+    onFinish: async (_prompt, completionText) => {
+      await saveSummaryAndGenerateTagsFn({
+        data: {
+          id: data.id,
+          summary: completionText,
+        },
+      })
+
+      toast.success('Summary generated and saved!')
+      router.invalidate()
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+
+  function handleGenerateSummary() {
+    if (!data.content) {
+      toast.error('No content available to summarize')
+      return
+    }
+
+    complete(data.content)
+  }
+
   const tags = Array.isArray(data.tags) ? data.tags : []
   return (
     <div className="mx-auto max-w-3xl space-y-6 w-full">
@@ -115,7 +150,37 @@ function RouteComponent() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-primary mb-3">
                 Summary
               </h2>
+
+              {completion || data.summary ? (
+                <MessageResponse>{completion}</MessageResponse>
+              ) : (
+                <p className="text-muted-foreground italic">
+                  {data.content
+                    ? 'No summary yet. Generate one with AI.'
+                    : 'No content available to summarize.'}
+                </p>
+              )}
             </div>
+
+            {data.content && !data.summary && (
+              <Button
+                onClick={handleGenerateSummary}
+                disabled={isLoading}
+                size="sm"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -135,8 +200,7 @@ function RouteComponent() {
             <CollapsibleContent>
               <Card className="mt-2">
                 <CardContent>
-                  {data.content}
-                  {/* <MessageResponse>{data.content}</MessageResponse> */}
+                  <MessageResponse>{data.content}</MessageResponse>
                 </CardContent>
               </Card>
             </CollapsibleContent>

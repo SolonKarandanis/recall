@@ -13,6 +13,8 @@ import { authFnMiddleware } from '@/middlewares/auth'
 import { notFound } from '@tanstack/react-router'
 import type { SearchResultWeb } from '@mendable/firecrawl-js'
 import type { SavedItem } from '#/generated/prisma/browser'
+import { generateText } from 'ai'
+import { openrouter } from '#/lib/openRouter'
 // import { generateText } from 'ai'
 // import { openrouter } from '@/lib/openRouter'
 
@@ -349,7 +351,7 @@ export const saveSummaryAndGenerateTagsFn = createServerFn({
     }
 
     const { text } = await generateText({
-      model: openrouter.chat('xiaomi/mimo-v2-flash:free'),
+      model: openrouter.chat('google/gemini-3.5-flash'),
       system: `You are a helpful assistant that extracts relevant tags from content summaries.
 Extract 3-5 short, relevant tags that categorize the content.
 Return ONLY a comma-separated list of tags, nothing else.
