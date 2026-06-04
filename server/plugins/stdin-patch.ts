@@ -1,3 +1,5 @@
+import { definePlugin as defineNitroPlugin } from 'nitro'
+
 export default defineNitroPlugin(() => {
 	// On some hosts (e.g. Hostinger), fd 0 is not openable as a TCP socket.
 	// When the Node.js ESM loader first syncs the `node:process` built-in's
